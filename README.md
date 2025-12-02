@@ -1,142 +1,107 @@
-# 🌐 VPC Monitoring Project — Flow Logs, CloudWatch Log Insights & VPC Peering
+# AWS VPC Monitoring Project – Flow Logs, CloudWatch Insights & VPC Peering
 
-A complete hands-on AWS networking project demonstrating VPC Monitoring, Flow Logs, IAM Roles, CloudWatch Insights, and VPC Peering to analyze real traffic between two VPCs.
+This project demonstrates how to monitor, analyze, and troubleshoot network traffic in AWS using:
+- VPC Flow Logs
+- Amazon CloudWatch Logs
+- CloudWatch Log Insights
+- EC2 Traffic Testing
+- VPC Peering
 
+It recreates a real-world scenario where cloud engineers must track traffic, detect failures, monitor blocked connections, and troubleshoot networking issues across environments
 
-### 📌 📘 Project Overview
+### Project Goal
 
-In this project, I built a complete monitoring and traffic analysis environment using:
+The goal of this project is to monitor network traffic inside a VPC and analyze accepted and rejected connections.
 
-- Two VPCs (VPC-A and VPC-B)
-
-- EC2 instances to generate network traffic
-
-- VPC Flow Logs to capture accepted/denied traffic
-
-- CloudWatch Logs for storage
-
-- CloudWatch Log Insights to analyze patterns
-
-- VPC Peering to test cross-VPC traffic
-
-- IAM Role & Policy to publish flow logs
-
-This project reflects real-world troubleshooting scenarios used by AWS Cloud Support Engineers.
+This helps in:
+- Troubleshooting connectivity
+- Identifying blocked traffic
+- Monitoring workloads
+- Understanding cross-VPC communication
+- Ensuring secure and compliant networking
 
 
+### Architecture of the Project
+<p align="center"> <img src="https://github.com/Tanomichikki/AWS-VPC-Monitoring/blob/main/Architecture.drawio.png" width="80%" /> </p>
 
-### 🏛️ Architecture Diagram
-             +----------------------------------------------+
-             |                  AWS Cloud                   |
-             +----------------------------------------------+
+### Step 1 – Create Two VPCs From Scratch
 
-      VPC-A (10.0.0.0/16)                         VPC-B (20.0.0.0/16)
-      ---------------------                       ----------------------
-      | EC2 Instance A     | ---- Peering -----> | EC2 Instance B     |
-      | (Traffic Source)    |                     | (Traffic Target)   |
-      ----------------------                      ----------------------
+We require two different isolated networks to simulate real-world multi-VPC communication. Each VPC needs a unique CIDR block to avoid IP conflicts and ensure smooth routing later during peering.
 
-                    |                                   |
-                    |                                   |
-                    +----------- VPC Flow Logs ---------+
-                                (All Traffic)
+- A subnet is required to host EC2 instances.
+- The Internet Gateway is needed for outbound traffic (software updates, testing).
+- Route tables ensure the subnet can reach the internet and later the other VPC.
 
-                              ↓ Sent to CloudWatch
+Create:
+- VPC A
+```bash
+10.1.0.0/16
+```
 
-                      CloudWatch Log Group
-                       /vpc-flow-logs/project
+- VPC B
+```bash
+10.2.0.0/16
+```
 
-                              ↓ Analysis
+Each with:
+- One public subnet
+- One Internet Gateway
+- Route table
 
-                       CloudWatch Log Insights
-                      (Query, Filter & Analyze)
+**Why two VPCs?**
+To simulate real-world multi-network AWS setups.
+Engineers often connect different VPCs used by different teams, apps, or environments.
 
+**Why different CIDR blocks?**
+If CIDR ranges overlap, VPC peering cannot work.
+Routing breaks.
 
+### Step 2 – Launch EC2 Instances in Each VPC
 
-### 🚀 1. Creating Two VPCs
+Launch:
+- EC2-A inside VPC-A
+- EC2-B inside VPC-B
 
-We create VPC-A and VPC-B, each with:
+Security group inbound rules:
+- Allow SSH (port 22)
+- Allow ICMP (Ping)
+- Allow traffic from the peer VPC CIDR
 
-Unique IPv4 CIDR blocks
+Security Groups determine what traffic is allowed.
+Ping and SSH help us test connectivity and produce logs that we later analyze using CloudWatch Insights.
 
-Public subnets
+### Step 3 – Enable VPC Flow Logs
 
-Internet Gateways
-
-Route tables
-
-
-
-✔ Why separate VPCs?
-
-To simulate real multi-VPC environments used in enterprises
-
-Allows demonstrating VPC peering and cross-VPC traffic
-
-Essential for network-level traffic monitoring
-
-
-
-### 🖥️ 2. Launch EC2 Instances
-
-One EC2 instance is launched in each VPC.
-
-✔ Security Group Rules
-Inbound Rules:
-- SSH (22) → My IP
-- ICMP (Ping) → Anywhere or specific CIDR
-
-✔ Why EC2 is required?
-
-We need real traffic (ping, SSH attempts)
-
-Flow Logs only generate entries when traffic occurs
-
-EC2 acts as the "client" and "server" for testing connectivity
-
-
-
-### 📡 3. Enable VPC Flow Logs
+You enable Flow Logs at the VPC level so every EC2/NACL/SG traffic is captured.
 
 Flow Logs capture:
+- ACCEPT / REJECT
+- Source/Destination IP
+- Ports
+- Protocols
+- Bytes in/out
 
-Accepted traffic
-
-Rejected traffic
-
-Source/Destination IP
-
-Port, protocol, bytes transferred
-
-Security group evaluations
-
-✔ Why Flow Logs?
-
-Helps troubleshoot network failures
-
-Identifies blocked traffic
-
-Helps analyze security group / NACL issues
-
-Useful for auditing and compliance
+**Why enable Flow Logs?**
+They act as a CCTV that records all network activity inside your VPC.
 
 
+### Step 4 – Create CloudWatch Log Group
 
-### 🔐 4. IAM Role & Policy for Flow Logs
+Example:
+/vpc-flow-logs/project
+Set retention to 7 or 30 days.
 
-Flow Logs cannot write to CloudWatch without permissions, so we manually create:
+**Why CloudWatch?**
+Flow Logs need somewhere to store captured traffic.
+CloudWatch Log Group allows retention settings, log classes, and integration with Log Insights for deeper analytics.
 
-IAM Policy
+### Step 5 – IAM Role + Policy for Flow Logs
 
-IAM Role
+Flow Logs need permission to publish logs into CloudWatch.
 
-Trust Relationship
+✔ Create IAM Policy (Flow Logs → CloudWatch)
 
-
-##### 🛡️ IAM Policy for VPC Flow Logs
-
-Attach this custom policy:
-```json
+```bash
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -155,17 +120,12 @@ Attach this custom policy:
 }
 ```
 
-✔ Why this policy?
+✔ Create IAM Role
+Role name:  VPCFlowLogsRole
+Attach the above policy.
 
-Flow Logs need permission to create log groups & streams
-
-Then continuously send log events to CloudWatch
-
-#### 🎭 IAM Role Trust Relationship
-
-Add this to allow VPC Flow Logs to assume the role:
-
-```json
+✔ Add Trust Relationship
+```bash
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -180,131 +140,104 @@ Add this to allow VPC Flow Logs to assume the role:
 }
 ```
 
-✔ Why trust policy?
+**Why is IAM needed?**
 
-AWS services must be explicitly trusted
+VPC Flow Logs do NOT automatically have permission to publish data.
 
-This allows Flow Logs to use the role to publish logs
+We create:
+- IAM Policy → defines what logs Flow Logs can push
+- IAM Role → attached to Flow Logs so AWS can assume it
+This ensures secure, least-privilege access.
 
+### Step 6 – Create VPC Peering
 
-#### 🔗 Attach IAM Role in Flow Log Creation
+Steps:
+1.	From VPC-A → Request peering to VPC-B
+2.	In VPC-B → Accept the request
+3.	Update route tables in both VPCs
 
-During Flow Log creation:
+**Why VPC Peering?**
+- VPC Peering creates a private link between two VPCs.
+- It enables the EC2 instances to communicate without using the internet.
+- This replicates real-world multi-VPC architectures used by companies.
 
-Destination: CloudWatch Logs
+### Step 7 – Update Route Tables
 
-Log group: /vpc-flow-logs/project
+**VPC-A Route Table**
+```bash
+Destination: 20.0.0.0/16
+Target: pcx-abcd1234
+```
 
-IAM role: VPCFlowLogsToCloudWatchRole
+**VPC-B Route Table**
+```bash
+Destination: 10.0.0.0/16
+Target: pcx-abcd1234
+```
 
+**Why routes?**
+- Peering alone does NOT enable communication.
+- Route tables define how to reach the other VPC’s CIDR.
+- Without route updates, packets would be dropped.
 
+### Step 8 – Test Connectivity between EC2 Instances
+From EC2-A:
+```bash
+ping <PrivateIP-of-EC2-B>
+````
+From EC2-B:
+```bash
+ping <PrivateIP-of-EC2-A>
+```
+If working → Flow Logs generate ACCEPT entries
+If blocked → Flow Logs generate REJECT entries
+Pinging confirms whether the route tables, security groups, and peering connection are correctly configured.
+If traffic fails, Flow Logs help identify which layer is blocking it.
 
-### 📁 5. Create CloudWatch Log Group
-/vpc-flow-logs/project
+# Step 9 – Analyze Flow Logs via CloudWatch Log Insights
 
-✔ Set retention
-
-7 days / 30 days
-
-Saves cost
-
-✔ Why CloudWatch?
-
-Acts as central monitoring storage
-
-Allows advanced querying with Log Insights
-
-
-
-### 🔍 6. Analyze Traffic Using CloudWatch Log Insights
-
-Example queries:
-
-🔸 Show all ACCEPTED traffic
+✔ View ACCEPTED traffic
+```bash
 fields @timestamp, srcAddr, dstAddr, action
 | filter action = "ACCEPT"
 | sort @timestamp desc
-
-🔸 Show all REJECTED traffic
+```
+✔ View REJECTED traffic
+```bash 
 fields @timestamp, srcAddr, dstAddr, action
 | filter action = "REJECT"
 | sort @timestamp desc
-
-🔸 Top Talkers (Who sends most traffic?)
+```
+✔ Top Ips sending data
+```bash
 stats sum(bytes) by srcAddr
-
-
-
-### 🔗 7. VPC Peering Connection
-
-Create a peering connection between the two VPCs.
-
-✔ Why?
-
-Enables private communication between VPCs
-
-No public internet involved
-
-Low latency
-
-
-### 🛣️ 8. Update Route Tables
-
-Add routes:
-
-In VPC-A route table:
-
-Destination: 20.0.0.0/16 → Target: pcx-xxxx
-
-
-In VPC-B route table:
-
-Destination: 10.0.0.0/16 → Target: pcx-xxxx
-
-✔ Why routes?
-
-Peering is useless until route tables allow traffic
-
-
-### 🧪 9. Test Connectivity
-
-From EC2 in VPC-A:
-
+```
+✔ Traffic between the two VPCs
 ```bash
-ping <EC2-B-Private-IP>
+fields srcAddr, dstAddr, action
+| filter (srcAddr like /^10\./ and dstAddr like /^20\./)
+```
+Or
+```bash
+(srcAddr like /^20\./ and dstAddr like /^10\./)
 ```
 
-From EC2 in VPC-B:
-```bash
-ping <EC2-A-Private-IP>
-```
+### Final Outcome
 
-✔ Traffic now appears in Flow Logs:
+By finishing this project, you now understand:
 
-accepted/rejected
+✔ How VPCs send/receive traffic
 
-bytes transferred
+✔ How to diagnose blocked traffic
 
-security group decisions
+✔ How CloudWatch Logs store and display network logs
 
+✔ How Flow Logs act like traffic CCTV
 
-### 🏆 Final Achievement
+✔ How VPC Peering connects two private networks
 
-By the end of this project, you have:
+✔ How Log Insights helps analyze network patterns
 
+✔ IAM Role + Policy required for Flow Logs
 
-✔ Built two VPCs from scratch
-
-✔ Launched EC2 instances to generate network traffic
-
-✔ Configured VPC Flow Logs with IAM roles
-
-✔ Sent logs to CloudWatch for monitoring
-
-✔ Queried logs using Log Insights
-
-✔ Created a VPC Peering connection
-
-✔ Tested cross-VPC connectivity
-
-✔ Understood how networking traffic flows in AWS
+✔ EC2-level networking troubleshooting
