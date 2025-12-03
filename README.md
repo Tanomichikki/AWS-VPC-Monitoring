@@ -24,6 +24,12 @@ This helps in:
 ### Architecture of the Project
 <p align="center"> <img src="https://github.com/Tanomichikki/AWS-VPC-Monitoring/blob/main/Architecture.drawio.png" width="60%" /> </p>
 
+
+### ▶️ Watch the Project
+
+[![VPC Monitoring Project](https://img.youtube.com/vi/SX-RKo2n3M8/0.jpg)](https://www.youtube.com/watch?v=SX-RKo2n3M8)
+
+
 ### Step 1 – Create Two VPCs
 
 I created two separate VPCs to simulate a real-world multi-environment network setup. These VPCs act as two isolated networks that will later communicate through VPC Peering.
@@ -137,6 +143,7 @@ Flow Logs act as network CCTV for your VPC. They allow you to see exactly what t
 Before enabling Flow Logs, we must create a CloudWatch Log Group where the logs will be stored.
 
 **Log Group Name:** ProjectVPCFlowLogGroups
+
 **Retention Period:** 7 or 30 days (to avoid unnecessary cost)
 
 **Why CloudWatch Log Groups?**
